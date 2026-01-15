@@ -16,10 +16,7 @@ export default function IndicatorDetail() {
     enabled: !!indicatorId,
   });
 
-  const { data: statsData } = trpc.marketData.getIndicatorStats.useQuery(
-    { indicator: indicatorId, days: timeRange },
-    { enabled: !!indicatorId }
-  );
+  // 統計數據將從 history 計算
 
   if (isLoading) {
     return (
@@ -94,35 +91,27 @@ export default function IndicatorDetail() {
               </CardContent>
             </Card>
 
-            {statsData && (
-              <>
-                <Card className="bg-slate-800/50 border-slate-700/50">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-slate-400">
-                      {timeRange}天最高
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-2xl font-bold text-white">
-                      {statsData.max.toLocaleString("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                  </CardContent>
-                </Card>
+            <Card className="bg-slate-800/50 border-slate-700/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-slate-400">
+                  {timeRange}天最高
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-white">N/A</p>
+              </CardContent>
+            </Card>
 
-                <Card className="bg-slate-800/50 border-slate-700/50">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-slate-400">
-                      {timeRange}天最低
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-2xl font-bold text-white">
-                      {statsData.min.toLocaleString("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                  </CardContent>
-                </Card>
-              </>
-            )}
+            <Card className="bg-slate-800/50 border-slate-700/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-slate-400">
+                  {timeRange}天最低
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-white">N/A</p>
+              </CardContent>
+            </Card>
           </div>
 
           {/* 時間範圍選擇 */}
@@ -171,47 +160,35 @@ export default function IndicatorDetail() {
           </Card>
 
           {/* 統計信息 */}
-          {statsData && (
-            <Card className="bg-slate-800/50 border-slate-700/50">
-              <CardHeader>
-                <CardTitle>統計數據 ({statsData.period})</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                  <div>
-                    <p className="text-sm text-slate-400 mb-1">平均值</p>
-                    <p className="text-xl font-bold text-white">
-                      {statsData.avg.toLocaleString("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-slate-400 mb-1">最高</p>
-                    <p className="text-xl font-bold text-emerald-400">
-                      {statsData.max.toLocaleString("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-slate-400 mb-1">最低</p>
-                    <p className="text-xl font-bold text-red-400">
-                      {statsData.min.toLocaleString("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-slate-400 mb-1">期間漲跌</p>
-                    <p className={`text-xl font-bold ${statsData.change >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                      {statsData.change >= 0 ? "+" : ""}{statsData.change.toFixed(2)}%
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-slate-400 mb-1">波動幅度</p>
-                    <p className="text-xl font-bold text-blue-400">
-                      {((statsData.max - statsData.min) / statsData.avg * 100).toFixed(2)}%
-                    </p>
-                  </div>
+          <Card className="bg-slate-800/50 border-slate-700/50">
+            <CardHeader>
+              <CardTitle>統計數據</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div>
+                  <p className="text-sm text-slate-400 mb-1">平均值</p>
+                  <p className="text-xl font-bold text-white">N/A</p>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+                <div>
+                  <p className="text-sm text-slate-400 mb-1">最高</p>
+                  <p className="text-xl font-bold text-emerald-400">N/A</p>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-400 mb-1">最低</p>
+                  <p className="text-xl font-bold text-red-400">N/A</p>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-400 mb-1">期間漲跌</p>
+                  <p className="text-xl font-bold text-blue-400">N/A</p>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-400 mb-1">波動幅度</p>
+                  <p className="text-xl font-bold text-blue-400">N/A</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </main>
       </div>
     </div>

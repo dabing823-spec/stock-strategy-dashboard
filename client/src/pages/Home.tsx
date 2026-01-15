@@ -1,153 +1,79 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TrendingDown, TrendingUp, AlertCircle, CheckCircle2, RefreshCw, ChevronRight } from "lucide-react";
+import { TrendingDown, TrendingUp, AlertCircle, CheckCircle2, Info } from "lucide-react";
 import { useState, useEffect } from "react";
-import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, ComposedChart, Bar } from "recharts";
-import { useAuth } from "@/_core/hooks/useAuth";
+import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
 import { trpc } from "@/lib/trpc";
-import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 
 interface MarketIndicator {
-  id: string;
   title: string;
   value: string;
-  ma10?: string;
   change?: string;
   status: "bullish" | "bearish" | "neutral" | "warning";
   description: string;
   data: Array<{ day: string; value: number; ma10?: number }>;
+  source: string;
 }
 
 export default function Home() {
-  const { user, loading, error, isAuthenticated, logout } = useAuth();
-  const [, setLocation] = useLocation();
-
+  const [, navigate] = useLocation();
+  const { data: allIndicators, isLoading } = trpc.marketData.getAllIndicators.useQuery();
   const [indicators, setIndicators] = useState<MarketIndicator[]>([]);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const { data: marketData, isLoading, refetch } = trpc.marketData.getAllIndicators.useQuery(undefined, {
-    refetchInterval: 60000,
-  });
 
   useEffect(() => {
-    if (!marketData) return;
+    if (allIndicators) {
+      const newIndicators: MarketIndicator[] = [
+        {
+          title: "台灣加權指數",
+          value: allIndicators.taiexIndex.value.toLocaleString("en-US", { maximumFractionDigits: 2 }),
+          change: `${allIndicators.taiexIndex.change > 0 ? "+" : ""}${allIndicators.taiexIndex.change.toFixed(2)}%`,
+          status:
+            allIndicators.taiexIndex.value > allIndicators.taiexIndex.monthlyMA ? "bullish" : "neutral",
+          description: `月線: ${allIndicators.taiexIndex.monthlyMA.toLocaleString()}, 季線: ${allIndicators.taiexIndex.quarterlyMA.toLocaleString()}`,
+          data: allIndicators.taiexIndex.history || [],
+          source: allIndicators.taiexIndex.source || "TWSE",
+        },
+        {
+          title: "VIX 指數",
+          value: allIndicators.vixIndex.value.toFixed(2),
+          change: `${allIndicators.vixIndex.change > 0 ? "+" : ""}${allIndicators.vixIndex.change.toFixed(2)}%`,
+          status: allIndicators.vixIndex.value < 20 ? "bullish" : allIndicators.vixIndex.value > 25 ? "warning" : "neutral",
+          description: allIndicators.vixIndex.value < 20 ? "市場風險情緒穩定" : "市場波動加大",
+          data: allIndicators.vixIndex.history || [],
+          source: allIndicators.vixIndex.source || "Yahoo Finance",
+        },
+        {
+          title: "CNN 恐慌指數",
+          value: allIndicators.cnnFearGreedIndex.value.toString(),
+          change: allIndicators.cnnFearGreedIndex.label,
+          status: allIndicators.cnnFearGreedIndex.value > 50 ? "bullish" : "bearish",
+          description: allIndicators.cnnFearGreedIndex.value > 50 ? "投資者情緒樂觀" : "投資者情緒悲觀",
+          data: [],
+          source: allIndicators.cnnFearGreedIndex.source || "CNN",
+        },
+        {
+          title: "融資餘額",
+          value: `${allIndicators.marginBalance.value.toLocaleString()}`,
+          change: `${allIndicators.marginBalance.change > 0 ? "+" : ""}${allIndicators.marginBalance.change.toFixed(1)}`,
+          status: "neutral",
+          description: "市場槓桿程度",
+          data: allIndicators.marginBalance.history || [],
+          source: allIndicators.marginBalance.source || "TWSE",
+        },
+        {
+          title: "融資維持率",
+          value: `${allIndicators.marginMaintainRate.value.toFixed(2)}%`,
+          change: "安全",
+          status: allIndicators.marginMaintainRate.value > 160 ? "bullish" : "warning",
+          description: `安全線: ${allIndicators.marginMaintainRate.safetyLine}%, 警戒線: ${allIndicators.marginMaintainRate.breakLine}%`,
+          data: [],
+          source: allIndicators.marginMaintainRate.source || "TWSE",
+        },
+      ];
 
-    const createIndicator = (
-      id: string,
-      title: string,
-      data: any,
-      getStatus: (data: any) => "bullish" | "bearish" | "neutral" | "warning",
-      getDescription: (data: any) => string
-    ): MarketIndicator => {
-      const lastValue = data.history[data.history.length - 1];
-      const ma10 = lastValue?.ma10 || lastValue?.value || data.value;
-
-      return {
-        id,
-        title,
-        value: Number(data.value).toLocaleString("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        ma10: Number(ma10).toLocaleString("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        change: `${Number(data.change) >= 0 ? "+" : ""}${Number(data.change).toFixed(2)}${data.unit ? "" : "%"}`,
-        status: getStatus(data),
-        description: getDescription(data),
-        data: (data.history || []).slice(-30),
-      };
-    };
-
-    const newIndicators: MarketIndicator[] = [
-      createIndicator(
-        "taiexIndex",
-        "台灣加權指數",
-        marketData.taiexIndex,
-        (d) => (d.value > d.monthlyMA ? "bullish" : "bearish"),
-        (d) => `月線: ${d.monthlyMA.toLocaleString()}, 季線: ${d.quarterlyMA.toLocaleString()}`
-      ),
-      createIndicator(
-        "vixIndex",
-        "VIX 指數",
-        marketData.vixIndex,
-        (d) => (d.value < 20 ? "bullish" : d.value > 30 ? "bearish" : "neutral"),
-        (d) => (d.value < 20 ? "市場風險情緒穩定" : "市場波動加大")
-      ),
-      createIndicator(
-        "cnnFearGreedIndex",
-        "CNN 恐慌指數",
-        marketData.cnnFearGreedIndex,
-        (d) => (d.value > 50 ? "bullish" : "bearish"),
-        (d) => (d.value > 50 ? "投資者情緒樂觀" : "投資者情緒悲觀")
-      ),
-      createIndicator(
-        "taiwanVixIndex",
-        "台灣 VIX 指數",
-        marketData.taiwanVixIndex,
-        (d) => (d.value > 20 ? "warning" : "neutral"),
-        (d) => (d.value > 20 ? "中性偏高" : "中性偏低")
-      ),
-      createIndicator(
-        "marginBalance",
-        "融資餘額",
-        { ...marketData.marginBalance, change: marketData.marginBalance.change || 0 },
-        () => "neutral",
-        () => "上市融資餘額"
-      ),
-      createIndicator(
-        "marginMaintainRate",
-        "融資維持率",
-        { ...marketData.marginMaintainRate, change: marketData.marginMaintainRate.change || 0 },
-        (d) => (d.value > d.safetyLine ? "bullish" : "warning"),
-        (d) => `安全線: ${d.safetyLine}%, 斷頭線: ${d.breakLine}%`
-      ),
-      createIndicator(
-        "crudOil",
-        "原油",
-        marketData.crudOil,
-        (d) => (d.change > 0 ? "bullish" : "bearish"),
-        () => "WTI 原油期貨"
-      ),
-      createIndicator(
-        "gold",
-        "黃金",
-        marketData.gold,
-        (d) => (d.value > 2000 ? "bullish" : "neutral"),
-        () => "COMEX 黃金期貨"
-      ),
-      createIndicator(
-        "dollarIndex",
-        "美元指數",
-        marketData.dollarIndex,
-        (d) => (d.value > 103 ? "warning" : "neutral"),
-        () => "美元強弱指標"
-      ),
-      createIndicator(
-        "usTenYearBond",
-        "10年期公債",
-        marketData.usTenYearBond,
-        (d) => (d.value > 4 ? "warning" : "neutral"),
-        () => "美國 10 年期公債殖利率"
-      ),
-      createIndicator(
-        "twdUsdRate",
-        "台幣匯率",
-        marketData.twdUsdRate,
-        (d) => (d.value > 32 ? "warning" : "neutral"),
-        () => "新台幣兌美元匯率"
-      ),
-    ];
-
-    setIndicators(newIndicators);
-    setLastUpdated(marketData.lastUpdated);
-  }, [marketData]);
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await refetch();
-    setIsRefreshing(false);
-  };
-
-  const handleCardClick = (indicatorId: string) => {
-    setLocation(`/indicator?id=${indicatorId}`);
-  };
+      setIndicators(newIndicators);
+    }
+  }, [allIndicators]);
 
   const getStatusIcon = (status: string) => {
     if (status === "bullish") return <TrendingUp className="w-5 h-5 text-emerald-400" />;
@@ -169,6 +95,14 @@ export default function Home() {
     return "#94a3b8";
   };
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950 flex items-center justify-center">
+        <div className="text-white text-xl">載入中...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950">
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
@@ -181,24 +115,16 @@ export default function Home() {
           <div className="container mx-auto px-4 py-6">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-4xl font-bold text-white" style={{ fontFamily: "Poppins, sans-serif" }}>股票操作戰略儀表板</h1>
+                <h1 className="text-4xl font-bold text-white" style={{ fontFamily: "Poppins, sans-serif" }}>
+                  股票操作戰略儀表板
+                </h1>
                 <p className="text-slate-400 mt-2">實時市場指標監控與策略分析</p>
               </div>
               <div className="text-right">
                 <p className="text-sm text-slate-400">最後更新</p>
                 <p className="text-lg font-semibold text-slate-200">
-                  {lastUpdated ? new Date(lastUpdated).toLocaleString("zh-TW") : "2026/01/15"}
+                  {allIndicators?.lastUpdated ? new Date(allIndicators.lastUpdated).toLocaleString("zh-TW") : ""}
                 </p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleRefresh}
-                  disabled={isRefreshing || isLoading}
-                  className="mt-2"
-                >
-                  <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`} />
-                  {isRefreshing ? "更新中..." : "刷新"}
-                </Button>
               </div>
             </div>
           </div>
@@ -206,37 +132,37 @@ export default function Home() {
 
         <main className="container mx-auto px-4 py-12">
           <div className="mb-12">
-            <h2 className="text-2xl font-bold text-white mb-6" style={{ fontFamily: "Poppins, sans-serif" }}>市場概況</h2>
+            <h2 className="text-2xl font-bold text-white mb-6" style={{ fontFamily: "Poppins, sans-serif" }}>
+              市場概況
+            </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {indicators.map((indicator) => (
+              {indicators.map((indicator, idx) => (
                 <Card
-                  key={indicator.id}
-                  onClick={() => handleCardClick(indicator.id)}
+                  key={idx}
                   className={`bg-gradient-to-br ${getStatusColor(indicator.status)} border backdrop-blur-sm hover:shadow-lg hover:shadow-blue-500/20 transition-all duration-300 hover:scale-105 cursor-pointer group flex flex-col`}
+                  onClick={() => navigate(`/indicator/${indicator.title}`)}
                 >
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between">
                       <CardTitle className="text-base font-semibold text-slate-200">{indicator.title}</CardTitle>
-                      <div className="flex gap-2">
-                        <div className="p-2 rounded-lg bg-slate-800/50 group-hover:bg-slate-700/50 transition-colors">{getStatusIcon(indicator.status)}</div>
-                        <div className="p-2 rounded-lg bg-slate-800/50 group-hover:bg-slate-700/50 transition-colors opacity-0 group-hover:opacity-100">
-                          <ChevronRight className="w-5 h-5 text-blue-400" />
-                        </div>
+                      <div className="p-2 rounded-lg bg-slate-800/50 group-hover:bg-slate-700/50 transition-colors">
+                        {getStatusIcon(indicator.status)}
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent className="flex-1 flex flex-col">
                     <div className="mb-3">
-                      <p className="text-3xl font-bold text-white" style={{ fontFamily: "Roboto Mono, monospace" }}>{indicator.value}</p>
-                      {indicator.ma10 && <p className="text-xs text-slate-500 mt-1">10日均線: {indicator.ma10}</p>}
+                      <p className="text-3xl font-bold text-white" style={{ fontFamily: "Roboto Mono, monospace" }}>
+                        {indicator.value}
+                      </p>
                       {indicator.change && (
                         <p
                           className={`text-sm mt-1 font-semibold ${
                             indicator.status === "bullish"
                               ? "text-emerald-400"
                               : indicator.status === "bearish"
-                              ? "text-red-400"
-                              : "text-slate-400"
+                                ? "text-red-400"
+                                : "text-slate-400"
                           }`}
                         >
                           {indicator.status === "bullish" && "↑ "}
@@ -246,30 +172,50 @@ export default function Home() {
                       )}
                     </div>
                     <p className="text-xs text-slate-400 leading-relaxed mb-3">{indicator.description}</p>
-                    <div className="mt-auto">
-                      <p className="text-xs text-slate-500 mb-2">30 天走勢</p>
-                      {indicator.data.length > 0 ? (
+
+                    {/* 數據來源標註 */}
+                    <div className="mt-auto pt-3 border-t border-slate-700/50">
+                      <div className="flex items-center gap-1 text-xs text-slate-500">
+                        <Info className="w-3 h-3" />
+                        <span>資料來源: {indicator.source}</span>
+                      </div>
+                    </div>
+
+                    {/* 迷你圖表 */}
+                    {indicator.data && indicator.data.length > 0 && (
+                      <div className="mt-3">
+                        <p className="text-xs text-slate-500 mb-2">30 天走勢</p>
                         <ResponsiveContainer width="100%" height={60}>
-                          <ComposedChart data={indicator.data}>
+                          <LineChart data={indicator.data}>
                             <XAxis dataKey="day" hide />
                             <YAxis hide domain={["dataMin", "dataMax"]} />
                             <Tooltip
                               contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #475569", borderRadius: "6px" }}
                               labelStyle={{ color: "#e2e8f0" }}
-                              formatter={(value: any) =>
-                                typeof value === "number"
-                                  ? value.toLocaleString("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                                  : value
-                              }
                             />
-                            <Bar dataKey="value" fill={getLineColor(indicator.status)} opacity={0.5} />
-                            <Line type="monotone" dataKey="ma10" stroke="#fbbf24" strokeWidth={2} dot={false} isAnimationActive={false} />
-                          </ComposedChart>
+                            <Line
+                              type="monotone"
+                              dataKey="value"
+                              stroke={getLineColor(indicator.status)}
+                              strokeWidth={2}
+                              dot={false}
+                              isAnimationActive={false}
+                            />
+                            {indicator.data[0]?.ma10 && (
+                              <Line
+                                type="monotone"
+                                dataKey="ma10"
+                                stroke="#eab308"
+                                strokeWidth={1}
+                                dot={false}
+                                isAnimationActive={false}
+                                strokeDasharray="5,5"
+                              />
+                            )}
+                          </LineChart>
                         </ResponsiveContainer>
-                      ) : (
-                        <div className="h-15 bg-slate-800/30 rounded animate-pulse" />
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}
@@ -277,7 +223,9 @@ export default function Home() {
           </div>
 
           <div className="bg-gradient-to-r from-slate-800/50 to-slate-800/30 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
-            <h2 className="text-2xl font-bold text-white mb-6" style={{ fontFamily: "Poppins, sans-serif" }}>策略分析</h2>
+            <h2 className="text-2xl font-bold text-white mb-6" style={{ fontFamily: "Poppins, sans-serif" }}>
+              策略分析
+            </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-emerald-400 flex items-center gap-2">
@@ -285,10 +233,21 @@ export default function Home() {
                   正面信號
                 </h3>
                 <ul className="space-y-2 text-slate-300 text-sm">
-                  <li>✓ 台股位階在月線與季線以上，多頭趨勢明確</li>
-                  <li>✓ VIX 指數低於 20，市場風險情緒穩定</li>
-                  <li>✓ CNN 恐慌指數 62，投資者情緒樂觀</li>
-                  <li>✓ 融資維持率 170%，市場槓桿穩健</li>
+                  {allIndicators?.taiexIndex && allIndicators.taiexIndex.value > allIndicators.taiexIndex.monthlyMA && (
+                    <li>✓ 台股位階在月線以上，多頭趨勢明確</li>
+                  )}
+                  {allIndicators?.taiexIndex && allIndicators.taiexIndex.value > allIndicators.taiexIndex.quarterlyMA && (
+                    <li>✓ 台股位階在季線以上，長期趨勢向上</li>
+                  )}
+                  {allIndicators?.vixIndex && allIndicators.vixIndex.value < 20 && (
+                    <li>✓ VIX 指數低於 20，市場風險情緒穩定</li>
+                  )}
+                  {allIndicators?.cnnFearGreedIndex && allIndicators.cnnFearGreedIndex.value > 50 && (
+                    <li>✓ CNN 恐慌指數 {allIndicators.cnnFearGreedIndex.value}，投資者情緒樂觀</li>
+                  )}
+                  {allIndicators?.marginMaintainRate && allIndicators.marginMaintainRate.value > 160 && (
+                    <li>✓ 融資維持率 {allIndicators.marginMaintainRate.value.toFixed(2)}%，市場槓桿穩健</li>
+                  )}
                 </ul>
               </div>
               <div className="space-y-4">
@@ -297,9 +256,16 @@ export default function Home() {
                   監控項目
                 </h3>
                 <ul className="space-y-2 text-slate-300 text-sm">
-                  <li>⚠ 台灣 VIX 22.67，需留意波動加大</li>
-                  <li>⚠ 融資餘額 3,593 億，監控過度槓桿</li>
-                  <li>⚠ 融資維持率跌破 160% 需警惕</li>
+                  {allIndicators?.vixIndex && allIndicators.vixIndex.value > 25 && (
+                    <li>⚠ VIX 指數 {allIndicators.vixIndex.value.toFixed(2)}，市場波動加大</li>
+                  )}
+                  {allIndicators?.marginMaintainRate && allIndicators.marginMaintainRate.value < 160 && (
+                    <li>⚠ 融資維持率 {allIndicators.marginMaintainRate.value.toFixed(2)}%，需留意風險</li>
+                  )}
+                  {allIndicators?.cnnFearGreedIndex && allIndicators.cnnFearGreedIndex.value < 30 && (
+                    <li>⚠ CNN 恐慌指數 {allIndicators.cnnFearGreedIndex.value}，投資者情緒悲觀</li>
+                  )}
+                  <li>⚠ 融資餘額 {allIndicators?.marginBalance?.value.toLocaleString()}億，監控過度槓桿</li>
                   <li>⚠ 關注美股走勢與 VIX 變化</li>
                 </ul>
               </div>
@@ -307,8 +273,11 @@ export default function Home() {
           </div>
 
           <div className="mt-12 pt-8 border-t border-slate-800/50 text-center text-slate-400 text-sm">
-            <p>此儀表板數據來自公開市場信息，僅供參考。投資決策應基於個人風險承受能力與充分研究。</p>
-            <p className="mt-2">© 2026 Stock Strategy Dashboard | 點擊任一卡片查看詳細分析</p>
+            <p>此儀表板數據來自官方公開數據源，僅供參考。投資決策應基於個人風險承受能力與充分研究。</p>
+            <p className="mt-2">© 2026 Stock Strategy Dashboard</p>
+            <p className="mt-4 text-xs text-slate-500">
+              數據來源: {allIndicators?.dataSource || "TWSE, Yahoo Finance, CNN"}
+            </p>
           </div>
         </main>
       </div>
