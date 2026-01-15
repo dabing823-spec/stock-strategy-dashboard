@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendingDown, TrendingUp, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
+import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
 
 interface MarketIndicator {
   title: string;
@@ -8,16 +9,75 @@ interface MarketIndicator {
   change?: string;
   status: "bullish" | "bearish" | "neutral" | "warning";
   description: string;
+  data: Array<{ day: string; value: number }>;
 }
+
+const generateMockData = (baseValue: number, volatility: number) => {
+  const data = [];
+  let value = baseValue;
+  for (let i = 29; i >= 0; i--) {
+    const change = (Math.random() - 0.5) * volatility;
+    value = Math.max(baseValue * 0.8, value + change);
+    const date = new Date();
+    date.setDate(date.getDate() - i);
+    data.push({
+      day: (date.getMonth() + 1).toString().padStart(2, "0") + "/" + date.getDate().toString().padStart(2, "0"),
+      value: Math.round(value * 100) / 100,
+    });
+  }
+  return data;
+};
 
 export default function Home() {
   const [indicators] = useState<MarketIndicator[]>([
-    { title: "台灣加權指數", value: "30,810.58", change: "-0.42%", status: "neutral", description: "位階在月線與季線以上，多頭趨勢" },
-    { title: "VIX 指數", value: "15.39", change: "-8.11%", status: "bullish", description: "低於 20，市場情緒穩定" },
-    { title: "CNN 恐慌指數", value: "62", change: "貪婪", status: "bullish", description: "投資者情緒樂觀" },
-    { title: "台灣 VIX 指數", value: "22.67", change: "+0.18%", status: "neutral", description: "中性偏高區間" },
-    { title: "融資餘額", value: "3,593 億", change: "+8.5 億", status: "neutral", description: "市場槓桿程度" },
-    { title: "融資維持率", value: "170.23%", change: "安全", status: "bullish", description: "遠高於安全線" },
+    {
+      title: "台灣加權指數",
+      value: "30,810.58",
+      change: "-0.42%",
+      status: "neutral",
+      description: "位階在月線與季線以上，多頭趨勢",
+      data: generateMockData(30810, 500),
+    },
+    {
+      title: "VIX 指數",
+      value: "15.39",
+      change: "-8.11%",
+      status: "bullish",
+      description: "低於 20，市場情緒穩定",
+      data: generateMockData(15.39, 3),
+    },
+    {
+      title: "CNN 恐慌指數",
+      value: "62",
+      change: "貪婪",
+      status: "bullish",
+      description: "投資者情緒樂觀",
+      data: generateMockData(62, 15),
+    },
+    {
+      title: "台灣 VIX 指數",
+      value: "22.67",
+      change: "+0.18%",
+      status: "neutral",
+      description: "中性偏高區間",
+      data: generateMockData(22.67, 2),
+    },
+    {
+      title: "融資餘額",
+      value: "3,593 億",
+      change: "+8.5 億",
+      status: "neutral",
+      description: "市場槓桿程度",
+      data: generateMockData(3593, 50),
+    },
+    {
+      title: "融資維持率",
+      value: "170.23%",
+      change: "安全",
+      status: "bullish",
+      description: "遠高於安全線",
+      data: generateMockData(170.23, 8),
+    },
   ]);
 
   const getStatusIcon = (status: string) => {
@@ -32,6 +92,12 @@ export default function Home() {
     if (status === "bearish") return "from-red-900/20 to-red-900/5 border-red-700/30";
     if (status === "warning") return "from-amber-900/20 to-amber-900/5 border-amber-700/30";
     return "from-slate-800/20 to-slate-800/5 border-slate-700/30";
+  };
+
+  const getLineColor = (status: string) => {
+    if (status === "bullish") return "#10b981";
+    if (status === "bearish") return "#ef4444";
+    return "#94a3b8";
   };
 
   return (
@@ -62,19 +128,30 @@ export default function Home() {
             <h2 className="text-2xl font-bold text-white mb-6" style={{ fontFamily: "Poppins, sans-serif" }}>市場概況</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {indicators.map((indicator, idx) => (
-                <Card key={idx} className={`bg-gradient-to-br ${getStatusColor(indicator.status)} border backdrop-blur-sm hover:shadow-lg hover:shadow-blue-500/20 transition-all duration-300 hover:scale-105 cursor-pointer group`}>
-                  <CardHeader className="pb-3">
+                <Card key={idx} className={`bg-gradient-to-br ${getStatusColor(indicator.status)} border backdrop-blur-sm hover:shadow-lg hover:shadow-blue-500/20 transition-all duration-300 hover:scale-105 cursor-pointer group flex flex-col`}>
+                  <CardHeader className="pb-2">
                     <div className="flex items-start justify-between">
                       <CardTitle className="text-base font-semibold text-slate-200">{indicator.title}</CardTitle>
                       <div className="p-2 rounded-lg bg-slate-800/50 group-hover:bg-slate-700/50 transition-colors">{getStatusIcon(indicator.status)}</div>
                     </div>
                   </CardHeader>
-                  <CardContent>
-                    <div className="mb-4">
+                  <CardContent className="flex-1 flex flex-col">
+                    <div className="mb-3">
                       <p className="text-3xl font-bold text-white" style={{ fontFamily: "Roboto Mono, monospace" }}>{indicator.value}</p>
-                      {indicator.change && <p className={`text-sm mt-2 font-semibold ${indicator.status === "bullish" ? "text-emerald-400" : indicator.status === "bearish" ? "text-red-400" : "text-slate-400"}`}>{indicator.status === "bullish" && "↑ "}{indicator.status === "bearish" && "↓ "}{indicator.change}</p>}
+                      {indicator.change && <p className={`text-sm mt-1 font-semibold ${indicator.status === "bullish" ? "text-emerald-400" : indicator.status === "bearish" ? "text-red-400" : "text-slate-400"}`}>{indicator.status === "bullish" && "↑ "}{indicator.status === "bearish" && "↓ "}{indicator.change}</p>}
                     </div>
-                    <p className="text-xs text-slate-400 leading-relaxed">{indicator.description}</p>
+                    <p className="text-xs text-slate-400 leading-relaxed mb-3">{indicator.description}</p>
+                    <div className="mt-auto">
+                      <p className="text-xs text-slate-500 mb-2">30 天走勢</p>
+                      <ResponsiveContainer width="100%" height={60}>
+                        <LineChart data={indicator.data}>
+                          <XAxis dataKey="day" hide />
+                          <YAxis hide domain={["dataMin", "dataMax"]} />
+                          <Tooltip contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #475569", borderRadius: "6px" }} labelStyle={{ color: "#e2e8f0" }} />
+                          <Line type="monotone" dataKey="value" stroke={getLineColor(indicator.status)} strokeWidth={2} dot={false} isAnimationActive={false} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
                   </CardContent>
                 </Card>
               ))}
