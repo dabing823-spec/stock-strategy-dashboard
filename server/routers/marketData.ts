@@ -6,37 +6,30 @@ import {
   getTaiwanMarginBalance,
   calculateMA10,
 } from "../_core/realTimeData";
+import { getCNNFearGreedWithFallback } from "../_core/cnnFearGreed";
 
 // CNN 恐慌指數（從 CNN 官方網站獲取）
 async function getCNNFearGreedIndex(): Promise<any> {
   try {
-    // 嘗試從 CNN 官方網站爬取
-    const axios = await import("axios");
-    const response = await axios.default.get("https://www.cnn.com/markets/fear-and-greed", {
-      timeout: 10000,
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-      },
-    });
+    const data = await getCNNFearGreedWithFallback();
+    
+    // 將情緒轉換為中文標籤
+    const sentimentMap: Record<string, string> = {
+      "Extreme Fear": "極度恐慌",
+      "Fear": "恐慌",
+      "Neutral": "中性",
+      "Greed": "貪婪",
+      "Extreme Greed": "極度貪婪",
+    };
 
-    // 從 HTML 中提取恐慌指數值
-    const htmlContent = response.data;
-    const match = htmlContent.match(/Fear.*?(\d+)/i) || htmlContent.match(/Greed.*?(\d+)/i);
-
-    if (match && match[1]) {
-      const value = parseInt(match[1]);
-      return {
-        value: Math.min(100, Math.max(0, value)),
-        label: value > 50 ? "貪婪" : value > 30 ? "中性" : "恐慌",
-        change: 0,
-        source: "CNN Fear & Greed Index",
-      };
-    }
-
-    throw new Error("Could not parse CNN Fear & Greed Index");
+    return {
+      value: data.value,
+      label: sentimentMap[data.sentiment] || "中性",
+      change: 0,
+      source: "CNN Fear & Greed Index",
+    };
   } catch (error) {
-    console.warn("[CNN Fear & Greed] Error fetching, using fallback:", error);
+    console.error("[CNN Fear & Greed] Error:", error);
     // 備用值（基於最近的實際值）
     return {
       value: 62,
