@@ -140,7 +140,7 @@ export default function Home() {
                 <Card
                   key={idx}
                   className={`bg-gradient-to-br ${getStatusColor(indicator.status)} border backdrop-blur-sm hover:shadow-lg hover:shadow-blue-500/20 transition-all duration-300 hover:scale-105 cursor-pointer group flex flex-col`}
-                  onClick={() => navigate(`/indicator/${indicator.title}`)}
+                  onClick={() => navigate(`/indicator?id=${encodeURIComponent(indicator.title)}`)}
                 >
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between">
