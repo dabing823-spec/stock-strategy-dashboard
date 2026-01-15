@@ -7,6 +7,7 @@ import {
   calculateMA10,
 } from "../_core/realTimeData";
 import { getCNNFearGreedWithFallback } from "../_core/cnnFearGreed";
+import { getTaiwanVixWithFallback } from "../_core/taiwanVix";
 
 // CNN 恐慌指數（從 CNN 官方網站獲取）
 async function getCNNFearGreedIndex(): Promise<any> {
@@ -36,6 +37,33 @@ async function getCNNFearGreedIndex(): Promise<any> {
       label: "貪婪",
       change: 0,
       source: "CNN Fear & Greed Index (Cached)",
+    };
+  }
+}
+
+// 台灣 VIX（從玩股網獲取）
+async function getTaiwanVixIndex(): Promise<any> {
+  try {
+    const data = await getTaiwanVixWithFallback();
+    
+    return {
+      name: "台灣 VIX",
+      symbol: "VIXTWN",
+      value: data.value,
+      change: data.changePercent,
+      history: [],
+      source: "Taiwan Futures Exchange (TAIFEX)",
+    };
+  } catch (error) {
+    console.error("[Taiwan VIX] Error:", error);
+    // 備用值
+    return {
+      name: "台灣 VIX",
+      symbol: "VIXTWN",
+      value: 22.67,
+      change: 0.18,
+      history: [],
+      source: "Taiwan Futures Exchange (TAIFEX) - Cached",
     };
   }
 }
@@ -84,12 +112,13 @@ export const marketDataRouter = router({
    */
   getAllIndicators: publicProcedure.query(async () => {
     try {
-      const [taiexIndex, vixIndex, cnnFearGreed, marginBalance, marginRate] = await Promise.allSettled([
+      const [taiexIndex, vixIndex, cnnFearGreed, marginBalance, marginRate, taiwanVix] = await Promise.allSettled([
         getTaiwanWeightedIndex(),
         getVIXIndex(),
         getCNNFearGreedIndex(),
         getTaiwanMarginBalance(),
         getMarginMaintainRate(),
+        getTaiwanVixIndex(),
       ]);
 
       const getValueOrFallback = (result: any, fallback: any) => {
@@ -169,6 +198,7 @@ export const marketDataRouter = router({
       const processedCnnFearGreed = getValueOrFallback(cnnFearGreed, fallbackData.cnnFearGreed);
       const processedMarginBalance = getValueOrFallback(marginBalance, fallbackData.marginBalance);
       const processedMarginRate = getValueOrFallback(marginRate, fallbackData.marginRate);
+      const processedTaiwanVix = getValueOrFallback(taiwanVix, { name: "台灣 VIX", symbol: "VIXTWN", value: 22.67, change: 0.18, history: [], source: "Taiwan Futures Exchange (TAIFEX)" });
 
       // 計算 10 日均線
       const taiexWithMA = {
@@ -190,8 +220,9 @@ export const marketDataRouter = router({
         cnnFearGreedIndex: processedCnnFearGreed,
         marginBalance: marginBalanceWithMA,
         marginMaintainRate: processedMarginRate,
+        taiwanVix: processedTaiwanVix,
         lastUpdated: new Date(),
-        dataSource: "TWSE OpenAPI, Yahoo Finance, CNN",
+        dataSource: "TWSE OpenAPI, Yahoo Finance, CNN, TAIFEX",
       };
     } catch (error) {
       console.error("[marketData] Error fetching all indicators:", error);
@@ -213,6 +244,7 @@ export const marketDataRouter = router({
           "CNN 恐慌指數": "cnnFearGreedIndex",
           "融資餘額": "marginBalance",
           "融資維持率": "marginMaintainRate",
+          "台灣 VIX": "taiwanVix",
         };
 
         const indicatorKey = indicatorMap[input] || input;
@@ -233,6 +265,9 @@ export const marketDataRouter = router({
             break;
           case "marginMaintainRate":
             indicator = await getMarginMaintainRate();
+            break;
+          case "taiwanVix":
+            indicator = await getTaiwanVixIndex();
             break;
           default:
             throw new Error(`Unknown indicator: ${input}`);

@@ -69,6 +69,15 @@ export default function Home() {
           data: [],
           source: allIndicators.marginMaintainRate.source || "TWSE",
         },
+        {
+          title: "台灣 VIX",
+          value: allIndicators.taiwanVix.value.toFixed(2),
+          change: `${allIndicators.taiwanVix.change > 0 ? "+" : ""}${allIndicators.taiwanVix.change.toFixed(2)}%`,
+          status: allIndicators.taiwanVix.value < 20 ? "bullish" : allIndicators.taiwanVix.value > 25 ? "warning" : "neutral",
+          description: allIndicators.taiwanVix.value < 20 ? "台股波動率低" : "台股波動率高",
+          data: allIndicators.taiwanVix.history || [],
+          source: allIndicators.taiwanVix.source || "TAIFEX",
+        },
       ];
 
       setIndicators(newIndicators);
