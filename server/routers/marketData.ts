@@ -2,12 +2,43 @@ import { publicProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import {
   getTaiwanWeightedIndex,
-  getVIXIndex,
   getTaiwanMarginBalance,
   calculateMA10,
 } from "../_core/realTimeData";
 import { getCNNFearGreedWithFallback } from "../_core/cnnFearGreed";
 import { getTaiwanVixWithFallback } from "../_core/taiwanVix";
+import { getIndicatorData } from "../_core/finnhubApi";
+
+// VIX 指數（從 Finnhub 獲取）
+async function getVIXIndex(): Promise<any> {
+  try {
+    const data = await getIndicatorData("^VIX");
+    if (!data) {
+      throw new Error("No VIX data");
+    }
+
+    return {
+      name: "VIX 指數",
+      symbol: "^VIX",
+      value: parseFloat(data.current.toString()),
+      change: parseFloat(data.changePercent),
+      history: data.history || [],
+      ma10: data.ma10,
+      source: "Yahoo Finance (via Finnhub)",
+    };
+  } catch (error) {
+    console.error("[VIX] Error:", error);
+    // 備用值
+    return {
+      name: "VIX 指數",
+      symbol: "^VIX",
+      value: 15.39,
+      change: -8.11,
+      history: [],
+      source: "Yahoo Finance (Cached)",
+    };
+  }
+}
 
 // CNN 恐慌指數（從 CNN 官方網站獲取）
 async function getCNNFearGreedIndex(): Promise<any> {
@@ -161,7 +192,8 @@ export const marketDataRouter = router({
           value: 15.39,
           change: -8.11,
           history: generateHistoryData(15.39, 3),
-          source: "Yahoo Finance",
+          ma10: 14.5,
+          source: "Yahoo Finance (Cached)",
         },
         cnnFearGreed: {
           name: "CNN 恐慌指數",
@@ -280,7 +312,8 @@ export const marketDataRouter = router({
           change: indicator.change || 0,
           unit: indicator.unit || "",
           label: indicator.label || "",
-          history: calculateMA10(indicator.history || []),
+          history: indicator.history || [],
+          ma10: indicator.ma10 || null,
           source: indicator.source || "Data Source",
           lastUpdated: new Date(),
         };
